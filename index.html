@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPV Session Timer</title>
+<style>
+  :root {
+    --bg: #0b0b10;
+    --panel: #15151d;
+    --line: #262633;
+    --text: #e6e6ef;
+    --muted: #8a8a9c;
+    --accent: #7cf;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0 auto 0 0; color: var(--muted); letter-spacing: .04em; }
+  select, input, button { font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: #3a3a4c; }
+  label.f { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; }
+
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .stage { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; gap: 18px; min-height: 60vh; }
+  .clock {
+    font-variant-numeric: tabular-nums; font-weight: 800; line-height: 1;
+    font-size: clamp(72px, 17vw, 260px); letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #ff4d6d, #ff9f1c, #ffe14d, #4dff88, #4dd2ff, #7a5cff, #ff4dd8);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 10px rgba(255,120,200,.45)) drop-shadow(0 0 28px rgba(90,170,255,.35));
+  }
+  .clock .t { font-size: .4em; }
+  .state { font-size: 18px; color: var(--muted); letter-spacing: .2em; text-transform: uppercase; min-height: 1.4em; }
+  .state.paused { color: #ffd166; }
+  .counter { display: flex; align-items: baseline; gap: 14px; }
+  .count { font-size: clamp(48px, 8vw, 110px); font-weight: 700; font-variant-numeric: tabular-nums; transition: transform .12s, color .12s; }
+  .count.bump { transform: scale(1.12); color: #fff; }
+  .count.undo { transform: scale(.9); color: #ff8fa3; }
+  .countLabel { display: flex; gap: 8px; align-items: center; }
+  .taps { height: 12px; display: flex; gap: 6px; }
+  .taps span { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .help { color: var(--muted); font-size: 14px; text-align: center; line-height: 1.7; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-size: 12px; background: var(--panel); }
+
+  aside { border-left: 1px solid var(--line); padding: 20px; overflow-y: auto; max-height: calc(100vh - 62px); }
+  @media (max-width: 900px) { aside { border-left: 0; border-top: 1px solid var(--line); max-height: none; } }
+  aside h2 { margin: 0 0 4px; font-size: 22px; }
+  aside .dur { color: var(--muted); margin-bottom: 12px; }
+  aside p, aside li { line-height: 1.55; color: #cfcfdc; }
+  aside ol, aside ul { padding-left: 20px; }
+  details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; color: var(--muted); }
+
+  .overlay { position: fixed; inset: 0; background: rgba(5,5,8,.86); display: none; align-items: center; justify-content: center; padding: 16px; }
+  .overlay.show { display: flex; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; width: min(520px, 100%); }
+  .card h2 { margin: 0 0 16px; }
+  .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .row b { font-variant-numeric: tabular-nums; }
+  .card .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .primary { background: #24304a; border-color: #34507a; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FPV SESSION TIMER</h1>
+  <label class="f">Session
+    <select id="sessionSel"></select>
+  </label>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="state" id="state">Ready</div>
+    <div class="clock" id="clock">0:00<span class="t">.0</span></div>
+    <div class="counter">
+      <div class="count" id="count">0</div>
+      <div class="countLabel">
+        <input id="labelInput" list="labelOpts" value="missed lap" size="14" aria-label="Counter label">
+        <datalist id="labelOpts">
+          <option value="missed lap"><option value="missed stop"><option value="missed pass">
+          <option value="missed rep"><option value="crash">
+        </datalist>
+      </div>
+    </div>
+    <div class="taps" id="taps"></div>
+    <div class="help">
+      <kbd>Space</kbd> start, then +1 &nbsp;·&nbsp; <kbd>Space</kbd><kbd>Space</kbd> undo &nbsp;·&nbsp;
+      <kbd>Space</kbd>×3 end &nbsp;·&nbsp; <kbd>P</kbd> pause
+    </div>
+  </section>
+  <aside id="info"></aside>
+</main>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <h2>Session done</h2>
+    <div id="sumRows"></div>
+    <label class="f" style="margin-top:14px">Attempted (sim lap count)
+      <input id="attempted" type="number" min="0" inputmode="numeric" style="width:90px">
+    </label>
+    <div class="note">Clean = Attempted minus the counter. Leave blank if it doesn't apply.</div>
+    <div class="actions">
+      <button class="primary" id="copyBtn">Copy summary</button>
+      <button id="resumeBtn">Resume</button>
+      <button id="newBtn">New session</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Session content: snapshot of ClickUp "01 Session menu" (FPV Practice list).
+   Update this block whenever the plan changes in ClickUp. Snapshot: 2026-10-18 ===== */
+const SESSIONS = [
+  { id: "A", name: "Clean laps", dur: "15 to 20 min", label: "missed lap",
+    html: `<p>Current track from <b>00 Sim Current focus</b>.</p><p>Log Attempted (lap counter), Clean and Best lap time.</p>` },
+  { id: "B", name: "Throttle", dur: "10 to 15 min", label: "missed stop",
+    html: `<p>On your current track:</p><ol>
+      <li><b>Gate stops:</b> come to a controlled near-hover about 1 to 2 m (3 to 6 ft) before each gate, then go through. A stop is clean if you hold height: no sink toward the ground, no balloon above the gate.</li>
+      <li><b>Height-hold lap:</b> one full lap at gate height.</li>
+      <li><b>Punch, coast, catch:</b> finish with short hops over obstacles. Punch up, coast near zero throttle, catch on the way down.</li></ol>
+      <p>Log Attempted and Clean for the gate stops. Use Main miss for the usual failure (Throttle sank, Throttle ballooned, Lost height).</p>` },
+  { id: "C", name: "Problem gate", dur: "10 to 20 min", label: "missed pass",
+    html: `<p>The gate or section you miss most, flown over and over, then one full lap.</p><p>Log Attempted and Clean passes, and the Crash spot.</p>` },
+  { id: "D", name: "Call-it reps", dur: "10 to 20 min", label: "missed rep",
+    html: `<p>Flips, rolls or split-S with lots of height, on a freestyle map or above the track. Mechanics in the FPV Practice Reference doc.</p><p>Log Attempted (called) and Clean.</p>` },
+  { id: "E", name: "Free fly", dur: "10 to 20 min", label: "missed lap",
+    html: `<p>No goal, any map. Good for turns in the direction your current track doesn't use, and the reset after a frustrated session.</p>` },
+  { id: "F", name: "Five minutes", dur: "5 min", label: "missed lap",
+    html: `<p>A few laps of your current track. Required after 2 or more days without flying. Counts as a day, not as a full session.</p>` },
+];
+const RULES_HTML = `
+  <p><b>Default pick:</b> alternate A and B. If your last full session was A, do B, and the reverse. After each session, submit the Session Log form.</p>
+  <ul>
+    <li><b>Warm-up doesn't count:</b> fly the first 2 to 3 minutes of every full session unscored. Start the tally after that.</li>
+    <li><b>Tilt rule:</b> if a session ends "Frustrated," the next session is E. Two frustrated endings in a row means a day off from scored sessions.</li>
+    <li><b>Gap rule:</b> after 2 or more days without flying, the next session is F.</li>
+  </ul>
+  <p><b>Weekly targets:</b> 5 or more days flown (F counts), 3 or more full sessions (A to E, 10 min or more), at least 1 A and 1 B.</p>`;
+/* ===== end session content ===== */
+
+const TAP_WINDOW = 350; // ms to wait for a 2nd/3rd tap
+const KEY = "fpvTimerState.v1";
+const $ = id => document.getElementById(id);
+
+let S = {
+  status: "ready",   // ready | running | paused | ended
+  startEpoch: 0, pausedMs: 0, pauseStart: 0, endEpoch: 0,
+  count: 0, session: "A", label: "missed lap", attempted: ""
+};
+try { const saved = JSON.parse(localStorage.getItem(KEY)); if (saved) S = Object.assign(S, saved); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+// ---- session picker
+const sel = $("sessionSel");
+SESSIONS.forEach(s => { const o = document.createElement("option"); o.value = s.id; o.textContent = `${s.id}. ${s.name}`; sel.appendChild(o); });
+sel.value = S.session;
+function renderInfo() {
+  const s = SESSIONS.find(x => x.id === S.session) || SESSIONS[0];
+  $("info").innerHTML = `<h2>${s.id}. ${s.name}</h2><div class="dur">${s.dur}</div>${s.html}
+    <details><summary>Rules and weekly targets</summary>${RULES_HTML}</details>`;
+}
+sel.addEventListener("change", () => {
+  S.session = sel.value;
+  if (S.status === "ready") { S.label = (SESSIONS.find(x => x.id === S.session) || {}).label || S.label; $("labelInput").value = S.label; }
+  save(); renderInfo(); sel.blur();
+});
+const labelInput = $("labelInput");
+labelInput.value = S.label;
+labelInput.addEventListener("input", () => { S.label = labelInput.value; save(); });
+labelInput.addEventListener("change", () => labelInput.blur());
+
+// ---- time
+function elapsed() {
+  if (S.status === "ready") return 0;
+  const now = S.status === "ended" ? S.endEpoch : Date.now();
+  const paused = S.pausedMs + (S.status === "paused" ? now - S.pauseStart : 0);
+  return Math.max(0, now - S.startEpoch - paused);
+}
+function fmt(ms, tenths = true) {
+  const t = Math.floor(ms / 100), s = Math.floor(t / 10), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+  const main = h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+  return tenths ? [main, `.${t % 10}`] : main;
+}
+function tick() {
+  const [a, b] = fmt(elapsed());
+  $("clock").innerHTML = `${a}<span class="t">${b}</span>`;
+  requestAnimationFrame(tick);
+}
+
+// ---- UI state
+function renderState() {
+  const st = $("state");
+  st.textContent = { ready: "Ready", running: "Running", paused: "Paused", ended: "Ended" }[S.status];
+  st.className = "state" + (S.status === "paused" ? " paused" : "");
+  $("count").textContent = S.count;
+  $("overlay").classList.toggle("show", S.status === "ended");
+  if (S.status === "ended") renderSummary();
+}
+function flash(cls) { const c = $("count"); c.classList.remove("bump", "undo"); void c.offsetWidth; c.classList.add(cls); setTimeout(() => c.classList.remove(cls), 160); }
+
+// ---- actions
+function start() { S.status = "running"; S.startEpoch = Date.now(); S.pausedMs = 0; S.count = 0; S.attempted = ""; save(); renderState(); lockWake(); }
+function plus() { S.count++; save(); renderState(); flash("bump"); }
+function undo() { if (S.count > 0) { S.count--; save(); renderState(); flash("undo"); } }
+function end() { if (S.status === "paused") { S.pausedMs += Date.now() - S.pauseStart; } S.status = "ended"; S.endEpoch = Date.now(); save(); renderState(); }
+function togglePause() {
+  if (S.status === "running") { S.status = "paused"; S.pauseStart = Date.now(); }
+  else if (S.status === "paused") { S.pausedMs += Date.now() - S.pauseStart; S.status = "running"; }
+  save(); renderState();
+}
+function resume() {
+  // continue the same session: treat the time spent on the summary screen as paused
+  S.pausedMs += Date.now() - S.endEpoch; S.status = "running"; save(); renderState(); lockWake();
+}
+function reset() { S.status = "ready"; S.count = 0; S.attempted = ""; S.pausedMs = 0; save(); renderState(); }
+
+// ---- multi-tap
+let taps = 0, tapTimer = null;
+function showTaps() { $("taps").innerHTML = "<span></span>".repeat(taps); }
+function resolveTaps() {
+  const n = taps; taps = 0; showTaps();
+  if (S.status === "ready") { if (n === 1) start(); return; }
+  if (S.status === "paused") { if (n === 1) togglePause(); else if (n >= 3) end(); return; }
+  if (S.status !== "running") return;
+  if (n === 1) plus(); else if (n === 2) undo(); else end();
+}
+function isTyping(t) { return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"); }
+window.addEventListener("keydown", e => {
+  if (isTyping(e.target)) { if (e.key === "Escape" || e.key === "Enter") e.target.blur(); return; }
+  if (S.status === "ended") return;
+  if (e.code === "Space") {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    taps++; showTaps();
+    clearTimeout(tapTimer); tapTimer = setTimeout(resolveTaps, TAP_WINDOW);
+  } else if (e.key === "p" || e.key === "P") {
+    if (S.status === "running" || S.status === "paused") togglePause();
+  }
+}, true);
+
+// ---- summary
+function summaryText() {
+  const s = SESSIONS.find(x => x.id === S.session) || SESSIONS[0];
+  const mins = (elapsed() / 60000);
+  const lines = [
+    `Session: ${s.id}. ${s.name}`,
+    `Duration: ${fmt(elapsed(), false)} (${mins.toFixed(1)} min)`,
+  ];
+  const att = parseInt(S.attempted, 10);
+  if (!isNaN(att)) { lines.push(`Attempted: ${att}`); lines.push(`Clean: ${Math.max(0, att - S.count)}`); }
+  lines.push(`${S.label || "count"}: ${S.count}`);
+  return lines.join("\n");
+}
+function renderSummary() {
+  const rows = summaryText().split("\n").map(l => { const i = l.indexOf(": "); return `<div class="row"><span>${l.slice(0, i)}</span><b>${l.slice(i + 2)}</b></div>`; });
+  $("sumRows").innerHTML = rows.join("");
+  $("attempted").value = S.attempted;
+}
+$("attempted").addEventListener("input", e => { S.attempted = e.target.value; save(); renderSummary(); });
+$("copyBtn").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(summaryText()); $("copyBtn").textContent = "Copied"; }
+  catch (e) { $("copyBtn").textContent = "Copy failed"; }
+  setTimeout(() => $("copyBtn").textContent = "Copy summary", 1500);
+});
+$("resumeBtn").addEventListener("click", resume);
+$("newBtn").addEventListener("click", reset);
+
+// ---- keep screen awake while a session is active
+let wakeLock = null;
+async function lockWake() {
+  try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (S.status === "running" || S.status === "paused")) lockWake(); });
+
+renderInfo(); renderState(); tick();
+if (S.status === "running" || S.status === "paused") lockWake();
+</script>
+</body>
+</html>
