@@ -6,10 +6,10 @@
 <title>FPV Session Timer</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@700&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/oxanium-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  /* Oxanium Bold, bundled (SIL Open Font License, see fonts/OFL.txt) */
+  @font-face { font-family: "Oxanium"; font-weight: 700; font-display: swap; src: url("fonts/oxanium-700.woff2") format("woff2"); }
   :root {
     --bg: #0b0b10;
     --panel: #15151d;
@@ -40,19 +40,19 @@
     font-size: clamp(72px, 17vw, 260px); white-space: nowrap;
     filter: drop-shadow(0 0 10px rgba(255,120,200,.45)) drop-shadow(0 0 28px rgba(90,170,255,.35));
   }
-  /* each character gets its own full rainbow, diagonal; fixed width stops jitter */
-  .clock .c { display: inline-block; width: .64em; text-align: center;
-    background: linear-gradient(135deg, #ff4d6d, #ff9f1c, #ffe14d, #4dff88, #4dd2ff, #7a5cff);
-    -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .clock .c.sep { width: .3em; }
-  /* the rainbow flows diagonally while the timer is running (position driven from JS via --rp, since digits are
+  /* each character gets its own full diagonal rainbow; fixed width stops jitter.
+     The rainbow flows diagonally while the timer is running (position driven from JS via --rp, since digits are
      re-rendered every 0.1 s). The palette is repeated twice at 200% size, so each digit always shows one full
      rainbow and the loop is seamless. Frozen when ready, paused or ended. */
   .clock .c { background-image: linear-gradient(135deg,
       #ff4d6d 0%, #ff9f1c 8.33%, #ffe14d 16.67%, #4dff88 25%, #4dd2ff 33.33%, #7a5cff 41.67%,
       #ff4d6d 50%, #ff9f1c 58.33%, #ffe14d 66.67%, #4dff88 75%, #4dd2ff 83.33%, #7a5cff 91.67%, #ff4d6d 100%);
-    background-size: 200% 200%; background-position: var(--rp, 0%) var(--rp, 0%); }
+    background-size: 200% 200%; background-position: var(--rp, 0%) var(--rp, 0%);
+    display: inline-block; width: .64em; text-align: center;
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .clock .c.sep { width: .3em; }
   .clock .t { font-size: .4em; }
+  .clock.long { font-size: clamp(56px, 13vw, 200px); }   /* h:mm:ss is wider */
   .clock.warm { filter: drop-shadow(0 0 12px rgba(255,80,40,.45)); }
   .clock.warm .c { background: none; color: #ff5a3c; }
   .state { font-size: 18px; color: var(--muted); letter-spacing: .2em; text-transform: uppercase; min-height: 1.4em; }
@@ -64,8 +64,6 @@
   .count.bump { transform: scale(1.12); color: #fff; }
   .count.undo { transform: scale(.9); color: #ff8fa3; }
   .countLabel { font-size: clamp(18px, 2.4vw, 28px); color: var(--muted); }
-  .panel .reset { width: 100%; margin-top: 12px; color: #ff5a5a; border-color: #5a2a30; }
-  .panel .reset:hover { border-color: #ff5a5a; }
   .taps { height: 12px; display: flex; gap: 6px; }
   .taps span { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
   .help { color: var(--muted); font-size: 14px; text-align: center; line-height: 1.7; }
@@ -99,6 +97,8 @@
   .slide input { width: 120px; padding: 0; }
   .slide b { width: 4.2em; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
   .setting small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .panel .reset { width: 100%; margin-top: 12px; color: #ff5a5a; border-color: #5a2a30; }
+  .panel .reset:hover { border-color: #ff5a5a; }
 
   /* countdown end: full-window flash (2 per second, under the 3/s photosensitivity limit), then a slow pulse in overtime */
   #flash { position: fixed; inset: 0; pointer-events: none; z-index: 30; opacity: 0; background: #ffd166; }
@@ -119,6 +119,7 @@
   @media (max-width: 600px) { .card .actions { grid-template-columns: 1fr; } .card .actions button { min-height: 52px; } }
   .card label.f { margin-top: 12px; justify-content: space-between; }
   .primary { background: #24304a; border-color: #34507a; }
+  #newBtn.confirm { color: #ff5a5a; border-color: #ff5a5a; }
   .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
 
   /* ---- touch mode ---- */
@@ -134,7 +135,6 @@
     transition: background .1s, border-color .1s; }
   .tapPad .big { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: .08em; text-transform: uppercase; }
   .tapPad .big .lbl { text-transform: none; letter-spacing: normal; }   /* label shown exactly as saved */
-  #newBtn.confirm { color: #ff5a5a; border-color: #ff5a5a; }
   .tapPad.hit { background: #24304a; border-color: #7cf; }
   .tbtns { gap: 10px; flex-wrap: wrap; justify-content: center; }
   .tbtns button { min-height: 48px; min-width: 120px; font-size: 16px; border-radius: 12px; }
@@ -148,6 +148,7 @@
     header label.f { font-size: 13px; }
     .stage { padding: 12px; gap: 12px; min-height: 0; }
     .clock { font-size: 22vw; }
+    .clock.long { font-size: 17vw; }
     .tapPad { min-height: 34vh; }
     .panel { right: 8px; left: 8px; width: auto; }
   }
@@ -189,9 +190,14 @@
       <label for="setInput">Input mode<small>Auto uses touch when the device's main pointer is a finger.</small></label>
       <select id="setInput"><option value="auto">Auto</option><option value="keyboard">Keyboard</option><option value="touch">Touch</option></select>
     </div>
+    <h3>Screen</h3>
+    <div class="setting">
+      <label for="setWake">Keep screen awake<small>Stops the device sleeping. While running includes paused.</small></label>
+      <select id="setWake"><option value="off">Disabled</option><option value="running">While running</option><option value="always">Always</option></select>
+    </div>
     <h3>Counter</h3>
     <div class="setting">
-      <label for="labelInput">Counter label<small>Picking a session resets it to that session's default.</small></label>
+      <label for="labelInput">Counter label</label>
       <input id="labelInput" list="labelOpts" size="12" aria-label="Counter label">
       <datalist id="labelOpts">
         <option value="oopsies"><option value="missed stop"><option value="missed pass">
@@ -254,23 +260,23 @@
    warmup: false skips warm-up for that session ===== */
 const SESSIONS = [
   // app-only entry (not in ClickUp): the default when no session type is picked
-  { id: "U", name: "Unspecified", noPrefix: true, dur: "", label: "oopsies", countdown: 0,
+  { id: "U", name: "Unspecified", noPrefix: true, dur: "", countdown: 0,
     html: `<p>No session type selected. Pick one from the Session menu to see its description.</p>` },
-  { id: "A", name: "Clean laps", dur: "15 to 20 min", label: "oopsies", countdown: 15,
+  { id: "A", name: "Clean laps", dur: "15 to 20 min", countdown: 15,
     html: `<p>Current track from <b>00 Sim Current focus</b>.</p><p>Log Attempted (lap counter), Clean and Best lap time.</p>` },
-  { id: "B", name: "Throttle", dur: "10 to 15 min", label: "missed stop", countdown: 10,
+  { id: "B", name: "Throttle", dur: "10 to 15 min", countdown: 10,
     html: `<p>On your current track:</p><ol>
       <li><b>Gate stops:</b> come to a controlled near-hover about 1 to 2 m (3 to 6 ft) before each gate, then go through. A stop is clean if you hold height: no sink toward the ground, no balloon above the gate.</li>
       <li><b>Height-hold lap:</b> one full lap at gate height.</li>
       <li><b>Punch, coast, catch:</b> finish with short hops over obstacles. Punch up, coast near zero throttle, catch on the way down.</li></ol>
       <p>Log Attempted and Clean for the gate stops. Use Main miss for the usual failure (Throttle sank, Throttle ballooned, Lost height).</p>` },
-  { id: "C", name: "Problem gate", dur: "10 to 20 min", label: "missed pass", countdown: 10,
+  { id: "C", name: "Problem gate", dur: "10 to 20 min", countdown: 10,
     html: `<p>The gate or section you miss most, flown over and over, then one full lap.</p><p>Log Attempted and Clean passes, and the Crash spot.</p>` },
-  { id: "D", name: "Call-it reps", dur: "10 to 20 min", label: "missed rep", countdown: 10,
+  { id: "D", name: "Call-it reps", dur: "10 to 20 min", countdown: 10,
     html: `<p>Flips, rolls or split-S with lots of height, on a freestyle map or above the track. Mechanics in the FPV Practice Reference doc.</p><p>Log Attempted (called) and Clean.</p>` },
-  { id: "E", name: "Free fly", dur: "10 to 20 min", label: "oopsies", countdown: 10,
+  { id: "E", name: "Free fly", dur: "10 to 20 min", countdown: 10,
     html: `<p>No goal, any map. Good for turns in the direction your current track doesn't use, and the reset after a frustrated session.</p>` },
-  { id: "F", name: "Five minutes", dur: "5 min", label: "oopsies", countdown: 5, warmup: false,
+  { id: "F", name: "Five minutes", dur: "5 min", countdown: 5, warmup: false,
     html: `<p>A few laps of your current track. Required after 2 or more days without flying. Counts as a day, not as a full session.</p><p><b>No warm-up:</b> the timer starts scoring right away.</p>` },
 ];
 const RULES_HTML = `
@@ -283,15 +289,17 @@ const RULES_HTML = `
   <p><b>Weekly targets:</b> 5 or more days flown (F counts), 3 or more full sessions (A to E, 10 min or more), at least 1 A and 1 B.</p>`;
 /* ===== end session content ===== */
 
+const DEFAULT_LABEL = "oopsies";   // the counter label lives in Settings only; sessions don't change it
 const TAP_WINDOW = 350; // ms to wait for a 2nd/3rd tap
 const KEY = "fpvTimerState.v1";
 const $ = id => document.getElementById(id);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const sessionName = s => s.noPrefix ? s.name : `${s.id}. ${s.name}`;
 const sessionById = id => SESSIONS.find(x => x.id === id) || SESSIONS[0];
 
 // ---- settings (all user-configurable options live here; add new keys with defaults)
 const SET_KEY = "fpvTimerSettings.v1";
-const DEFAULTS = { warmupMin: 3, idleSec: 3, inputMode: "auto", animSpeed: 50 };
+const DEFAULTS = { warmupMin: 3, idleSec: 3, inputMode: "auto", animSpeed: 50, wakeMode: "off" };
 const SETTINGS = { ...DEFAULTS };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem(SET_KEY)) || {}); } catch (e) {}
 const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(SETTINGS)); } catch (e) {} };
@@ -299,12 +307,18 @@ const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(
 let S = {
   status: "ready",   // ready | running | paused | ended
   startEpoch: 0, pausedMs: 0, pauseStart: 0, endEpoch: 0, warmMs: 0,
-  count: 0, session: "U", label: "oopsies", attempted: "", bestLap: "",
+  count: 0, session: "U", label: DEFAULT_LABEL, attempted: "", bestLap: "",
   mode: "0", customMin: "", overFlashed: false
 };
 try { const saved = JSON.parse(localStorage.getItem(KEY)); if (saved) S = Object.assign(S, saved); } catch (e) {}
-if (S.label === "missed lap" || S.label === "oopsie!") S.label = "oopsies";   // old default labels
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+if (S.label === "missed lap" || S.label === "oopsie!") S.label = DEFAULT_LABEL;   // old default labels
+// saved session or timer no longer offered (e.g. after a ClickUp sync): fall back to the defaults
+if (!SESSIONS.some(x => x.id === S.session)) S.session = "U";
+if (!["0", "5", "10", "15", "20", "custom"].includes(S.mode)) S.mode = "0";
+// a running session left alone for 30+ min (tab closed or device asleep) comes back paused at the moment it was last seen
+const STALE_MS = 30 * 60000;
+if (S.status === "running" && S.lastSeen && Date.now() - S.lastSeen > STALE_MS) { S.status = "paused"; S.pauseStart = S.lastSeen; }
+const save = () => { S.lastSeen = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
 // ---- session picker
 const sel = $("sessionSel"), modeSel = $("modeSel"), customMin = $("customMin"), labelInput = $("labelInput");
@@ -317,7 +331,6 @@ function renderInfo() {
 }
 function applySessionDefaults() {
   const s = sessionById(S.session);
-  setLabel(s.label || S.label);
   const m = String(s.countdown || 0);
   if ([...modeSel.options].some(o => o.value === m)) { S.mode = m; }
   else { S.mode = "custom"; S.customMin = m; customMin.value = m; }
@@ -370,7 +383,7 @@ function tick() {
   if (over) a = "+" + a;
   const chars = str => [...str].map(ch => `<span class="c${/\d/.test(ch) ? "" : " sep"}">${ch}</span>`).join("");
   const html = `${chars(a)}<span class="t">${chars(b)}</span>`;
-  if (html !== lastClock) { $("clock").innerHTML = html; lastClock = html; }
+  if (html !== lastClock) { $("clock").innerHTML = html; lastClock = html; $("clock").classList.toggle("long", a.split(":").length > 2); }
   $("clock").classList.toggle("warm", warm);
   const st = $("state");
   st.textContent = S.status === "paused" ? "Paused" : warm ? "Warm-up" : over ? "Overtime" : { ready: "Ready", running: "Running", ended: "Ended" }[S.status];
@@ -383,6 +396,7 @@ function tick() {
     $("clock").style.setProperty("--rp", rainbowPos.toFixed(2) + "%");
   }
   lastFrame = performance.now();
+  if (S.status === "running" && Date.now() - (S.lastSeen || 0) > 10000) save();   // heartbeat for the stale check
   updateIdle(); updatePad(warm);
   requestAnimationFrame(tick);
 }
@@ -390,22 +404,23 @@ function tick() {
 // ---- UI state
 function renderState() {
   const locked = S.status !== "ready";
-  modeSel.disabled = locked; customMin.disabled = locked;
+  modeSel.disabled = locked; customMin.disabled = locked; sel.disabled = locked;   // session and timer are fixed once started
   $("count").textContent = S.count;
   $("overlay").classList.toggle("show", S.status === "ended");
   if (S.status === "ended") renderSummary();
+  syncWake();
 }
-function flash(cls) { const c = $("count"); c.classList.remove("bump", "undo"); void c.offsetWidth; c.classList.add(cls); setTimeout(() => c.classList.remove(cls), 160); }
+function bumpCount(cls) { const c = $("count"); c.classList.remove("bump", "undo"); void c.offsetWidth; c.classList.add(cls); setTimeout(() => c.classList.remove(cls), 160); }
 
 // ---- actions
 function start(skipWarmup) {
   const sess = sessionById(S.session);
   S.warmMs = (skipWarmup || sess.warmup === false) ? 0 : Math.max(0, Number(SETTINGS.warmupMin) || 0) * 60000;
   S.status = "running"; S.startEpoch = Date.now(); S.pausedMs = 0; S.count = 0; S.attempted = ""; S.bestLap = ""; S.overFlashed = false; S.copied = false;
-  save(); renderState(); lockWake(); markActive();
+  save(); renderState(); markActive();
 }
-function plus() { S.count++; save(); renderState(); flash("bump"); }
-function undo() { if (S.count > 0) { S.count--; save(); renderState(); flash("undo"); } }
+function plus() { S.count++; save(); renderState(); bumpCount("bump"); }
+function undo() { if (S.count > 0) { S.count--; save(); renderState(); bumpCount("undo"); } }
 function end() { if (S.status === "paused") { S.pausedMs += Date.now() - S.pauseStart; } S.status = "ended"; S.endEpoch = Date.now(); save(); renderState(); }
 function togglePause() {
   if (S.status === "running") { S.status = "paused"; S.pauseStart = Date.now(); }
@@ -415,7 +430,7 @@ function togglePause() {
 function resume() {
   // continue the same session: treat the time spent on the summary screen as paused
   clearNewConfirm(); S.copied = false;
-  S.pausedMs += Date.now() - S.endEpoch; S.status = "running"; save(); renderState(); lockWake(); markActive();
+  S.pausedMs += Date.now() - S.endEpoch; S.status = "running"; save(); renderState(); markActive();
 }
 function reset() { S.status = "ready"; S.count = 0; S.attempted = ""; S.bestLap = ""; S.pausedMs = 0; S.overFlashed = false; save(); renderState(); }
 
@@ -434,7 +449,10 @@ function registerTap() {
   taps++; showTaps();
   clearTimeout(tapTimer); tapTimer = setTimeout(resolveTaps, TAP_WINDOW);
 }
-function isTyping(t) { return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"); }
+// text entry only: sliders and other non-text inputs don't swallow Space / P / F
+function isTyping(t) {
+  return !!t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && !["range", "checkbox", "radio", "button"].includes(t.type)));
+}
 function toggleFullscreen() {
   const d = document, el = d.documentElement;
   try {
@@ -447,6 +465,7 @@ window.addEventListener("keydown", e => {
   if (settingsOpen() && e.key === "Escape") { closeSettings(); return; }
   if (isTyping(e.target)) { if (e.key === "Escape" || e.key === "Enter") e.target.blur(); return; }
   if (S.status === "ended") return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // leave browser shortcuts (Cmd/Ctrl+P, +F) alone
   if (e.code === "Space") {
     e.preventDefault();
     if (e.repeat) return;
@@ -454,9 +473,9 @@ window.addEventListener("keydown", e => {
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     registerTap();
   } else if (e.key === "p" || e.key === "P") {
-    if (S.status === "running" || S.status === "paused") togglePause();
+    if (!e.repeat && (S.status === "running" || S.status === "paused")) togglePause();
   } else if (e.key === "f" || e.key === "F") {
-    toggleFullscreen();
+    if (!e.repeat) toggleFullscreen();
   }
 }, true);
 
@@ -480,26 +499,27 @@ function updateIdle() {
 }
 
 // ---- summary
-function summaryText() {
+// summary as [name, value] pairs: one source for both the copied text and the on-screen rows
+function summaryRows() {
   const s = sessionById(S.session);
   const mins = (scored() / 60000);
   const warmDone = Math.min(elapsed(), S.warmMs);
-  const lines = [
-    `Session: ${sessionName(s)}`,
-    `Warmup: ${S.warmMs ? fmt(warmDone, false) : "No"}`,
-    `Timer: ${targetMs() ? fmt(targetMs(), false) + " countdown" : "Count up"}`,
-    `Duration: ${fmt(scored(), false)} (${mins.toFixed(1)} min)`,
+  const rows = [
+    ["Session", sessionName(s)],
+    ["Warmup", S.warmMs ? fmt(warmDone, false) : "No"],
+    ["Timer", targetMs() ? fmt(targetMs(), false) + " countdown" : "Count up"],
+    ["Duration", `${fmt(scored(), false)} (${mins.toFixed(1)} min)`],
   ];
   const att = parseInt(S.attempted, 10);
-  if (!isNaN(att)) { lines.push(`Attempted: ${att}`); lines.push(`Clean: ${Math.max(0, att - S.count)}`); }
+  if (!isNaN(att)) { rows.push(["Attempted", att]); rows.push(["Clean", Math.max(0, att - S.count)]); }
   const best = parseFloat(S.bestLap);
-  if (!isNaN(best)) lines.push(`Best lap time (sec): ${best}`);
-  lines.push(`${S.label || "count"}: ${S.count}`);
-  return lines.join("\n");
+  if (!isNaN(best)) rows.push(["Best lap time (sec)", best]);
+  rows.push([S.label || "count", S.count]);
+  return rows;
 }
+const summaryText = () => summaryRows().map(([k, v]) => `${k}: ${v}`).join("\n");
 function renderSummary() {
-  const rows = summaryText().split("\n").map(l => { const i = l.indexOf(": "); return `<div class="row"><span>${l.slice(0, i)}</span><b>${l.slice(i + 2)}</b></div>`; });
-  $("sumRows").innerHTML = rows.join("");
+  $("sumRows").innerHTML = summaryRows().map(([k, v]) => `<div class="row"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("");
   if (document.activeElement !== $("attempted")) $("attempted").value = S.attempted;
   if (document.activeElement !== $("bestLap")) $("bestLap").value = S.bestLap;
 }
@@ -523,7 +543,7 @@ $("newBtn").addEventListener("click", () => {
 // ---- settings panel (drops down from the gear; changes save as you type)
 const settingsOpen = () => $("settings").classList.contains("show");
 function openSettings() {
-  $("setInput").value = SETTINGS.inputMode;
+  $("setInput").value = SETTINGS.inputMode; $("setWake").value = SETTINGS.wakeMode;
   SLIDERS.forEach(([id, key]) => { $(id).value = SETTINGS[key]; }); showSliderValues();
   $("settings").classList.add("show"); $("gearBtn").classList.add("open"); $("gearBtn").setAttribute("aria-expanded", "true");
 }
@@ -549,19 +569,35 @@ $("resetDefaults").addEventListener("click", e => {
   if (S.status === "ready") {   // session and timer only reset between sessions, never mid-session
     S.session = "U"; sel.value = "U"; S.mode = "0"; modeSel.value = "0"; showCustom(); renderInfo();
   }
-  setLabel(sessionById(S.session).label || "oopsies"); save();
-  openSettings(); applyInputMode(); $("resetDefaults").blur();
+  setLabel(DEFAULT_LABEL); save();
+  openSettings(); applyInputMode(); syncWake(); $("resetDefaults").blur();
 });
+$("setWake").addEventListener("change", e => { SETTINGS.wakeMode = e.target.value; saveSettings(); syncWake(); });
 $("setInput").addEventListener("change", e => { SETTINGS.inputMode = e.target.value; saveSettings(); applyInputMode(); });
 $("gearBtn").addEventListener("click", e => { e.stopPropagation(); $("gearBtn").blur(); settingsOpen() ? closeSettings() : openSettings(); });
 document.addEventListener("click", e => { if (settingsOpen() && !$("settings").contains(e.target)) closeSettings(); });
 
-// ---- keep screen awake while a session is active
-let wakeLock = null;
-async function lockWake() {
-  try { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch (e) {}
+// ---- keep screen awake (Settings > Screen): disabled, while running (incl. paused), or always
+let wakeLock = null, wakeBusy = false;
+function wantWake() {
+  return SETTINGS.wakeMode === "always" || (SETTINGS.wakeMode === "running" && (S.status === "running" || S.status === "paused"));
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (S.status === "running" || S.status === "paused")) lockWake(); });
+async function syncWake() {
+  if (!("wakeLock" in navigator) || wakeBusy) return;
+  wakeBusy = true;
+  try {
+    if (wantWake() && !wakeLock && document.visibilityState === "visible") {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (!wantWake() && wakeLock) {
+      await wakeLock.release(); wakeLock = null;
+    }
+  } catch (e) {}
+  wakeBusy = false;
+}
+document.addEventListener("visibilitychange", syncWake);   // the browser drops the lock when the tab is hidden
+
+if (!["off", "running", "always"].includes(SETTINGS.wakeMode)) SETTINGS.wakeMode = "off";
 
 // ---- touch mode
 const coarse = window.matchMedia("(pointer: coarse)");
@@ -584,7 +620,6 @@ pad.addEventListener("pointerdown", e => {
 });
 pad.addEventListener("contextmenu", e => e.preventDefault());
 let lastPad = "";
-const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const K = k => `<kbd>${k}</kbd>`, SEP = " &nbsp;·&nbsp; ";
 // does starting now run a warm-up? (setting above 0 and the session doesn't skip it)
 const warmApplies = () => (Number(SETTINGS.warmupMin) || 0) > 0 && sessionById(S.session).warmup !== false;
@@ -626,7 +661,6 @@ $("infoBtn").addEventListener("click", () => {
 });
 
 renderInfo(); renderState(); tick();
-if (S.status === "running" || S.status === "paused") lockWake();
 </script>
 </body>
 </html>

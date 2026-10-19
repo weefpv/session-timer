@@ -33,16 +33,23 @@ Gear icon, top right. Saved per device:
 - Hide controls after: 0 to 60 s, default 3 (0 never hides)
 - Animation speed: 1 to 100 (5 s to 1 s per rainbow cycle), default 50
 - Input mode: Auto, Keyboard or Touch
-- Counter label (resets to the session's default when you pick a session)
+- Keep screen awake: Disabled (default), While running (includes paused), or Always
+- Counter label: default "oopsies"; sessions don't change it
 
 Reset all restores all of the above, and between sessions also sets Session to Unspecified and Timer to Count up.
 
+A running session left untouched for 30+ minutes (tab closed, device asleep) reopens paused at the moment it was last seen.
+
 ## Session content
 
-Session descriptions, default counter labels, default timer and warm-up skip are a snapshot of the ClickUp
+Session descriptions, default timer and warm-up skip are a snapshot of the ClickUp
 "01 Session menu" task, in the `SESSIONS` block in `index.html`. The first entry, "Unspecified", is app-only:
-it's the default session, with Count up and the "oopsies" label.
+it's the default session, with Count up.
 
 ## Summary
 
 New session before Copy summary asks for a second press to discard.
+
+## Font
+
+Oxanium Bold is bundled in `fonts/` under the SIL Open Font License (`fonts/OFL.txt`).
