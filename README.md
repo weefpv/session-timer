@@ -12,6 +12,8 @@ Single-page session timer for FPV sim practice. Live at https://weefpv.github.io
 | P | | Pause / resume | Pause / resume |
 | F | Fullscreen | Fullscreen | Fullscreen |
 
+The hint line under the counter changes with the current state and shows the counter label.
+
 ## Touch mode
 
 Settings > Input mode: Auto, Keyboard or Touch. Auto picks Touch when the device's main pointer is a finger.
@@ -33,10 +35,14 @@ Gear icon, top right. Saved per device:
 - Input mode: Auto, Keyboard or Touch
 - Counter label (resets to the session's default when you pick a session)
 
-Reset to defaults restores all of the above.
+Reset all restores all of the above, and between sessions also sets Session to Unspecified and Timer to Count up.
 
 ## Session content
 
 Session descriptions, default counter labels, default timer and warm-up skip are a snapshot of the ClickUp
 "01 Session menu" task, in the `SESSIONS` block in `index.html`. The first entry, "Unspecified", is app-only:
 it's the default session, with Count up and the "oopsies" label.
+
+## Summary
+
+New session before Copy summary asks for a second press to discard.

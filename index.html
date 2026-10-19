@@ -62,7 +62,8 @@
   .count.bump { transform: scale(1.12); color: #fff; }
   .count.undo { transform: scale(.9); color: #ff8fa3; }
   .countLabel { font-size: clamp(18px, 2.4vw, 28px); color: var(--muted); }
-  .panel .reset { width: 100%; margin-top: 12px; }
+  .panel .reset { width: 100%; margin-top: 12px; color: #ff5a5a; border-color: #5a2a30; }
+  .panel .reset:hover { border-color: #ff5a5a; }
   .taps { height: 12px; display: flex; gap: 6px; }
   .taps span { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
   .help { color: var(--muted); font-size: 14px; text-align: center; line-height: 1.7; }
@@ -110,7 +111,10 @@
   .card h2 { margin: 0 0 16px; }
   .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .row b { font-variant-numeric: tabular-nums; }
-  .card .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  /* equal fixed columns so a button's text change can never move the buttons */
+  .card .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+  .card .actions button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 44px; }
+  @media (max-width: 600px) { .card .actions { grid-template-columns: 1fr; } .card .actions button { min-height: 52px; } }
   .card label.f { margin-top: 12px; justify-content: space-between; }
   .primary { background: #24304a; border-color: #34507a; }
   .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
@@ -127,6 +131,8 @@
     font-size: 17px; line-height: 1.5; padding: 16px; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent;
     transition: background .1s, border-color .1s; }
   .tapPad .big { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: .08em; text-transform: uppercase; }
+  .tapPad .big .lbl { text-transform: none; letter-spacing: normal; }   /* label shown exactly as saved */
+  #newBtn.confirm { color: #ff5a5a; border-color: #ff5a5a; }
   .tapPad.hit { background: #24304a; border-color: #7cf; }
   .tbtns { gap: 10px; flex-wrap: wrap; justify-content: center; }
   .tbtns button { min-height: 48px; min-width: 120px; font-size: 16px; border-radius: 12px; }
@@ -190,7 +196,7 @@
         <option value="missed rep"><option value="crash">
       </datalist>
     </div>
-    <button class="reset" id="resetDefaults">Reset to defaults</button>
+    <button class="reset" id="resetDefaults">Reset all</button>
     <div class="note">Saved on this device.</div>
   </div>
 </header>
@@ -204,11 +210,7 @@
       <div class="countLabel" id="labelText">oopsies</div>
     </div>
     <div class="taps" id="taps"></div>
-    <div class="help chrome keysOnly">
-      <kbd>Space</kbd> start with warm-up &nbsp;·&nbsp; <kbd>Space</kbd><kbd>Space</kbd> start, skip warm-up<br>
-      Then: <kbd>Space</kbd> +1 &nbsp;·&nbsp; <kbd>Space</kbd><kbd>Space</kbd> undo &nbsp;·&nbsp;
-      <kbd>Space</kbd>×3 end &nbsp;·&nbsp; <kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>F</kbd> fullscreen
-    </div>
+    <div class="help chrome keysOnly" id="keyHints"></div>
     <div class="tapPad touchOnly" id="tapPad" role="button" aria-label="Tap pad">
       <div class="big" id="padTitle">Tap to start</div>
       <div class="chrome" id="padHint"></div>
@@ -397,7 +399,7 @@ function flash(cls) { const c = $("count"); c.classList.remove("bump", "undo"); 
 function start(skipWarmup) {
   const sess = sessionById(S.session);
   S.warmMs = (skipWarmup || sess.warmup === false) ? 0 : Math.max(0, Number(SETTINGS.warmupMin) || 0) * 60000;
-  S.status = "running"; S.startEpoch = Date.now(); S.pausedMs = 0; S.count = 0; S.attempted = ""; S.bestLap = ""; S.overFlashed = false;
+  S.status = "running"; S.startEpoch = Date.now(); S.pausedMs = 0; S.count = 0; S.attempted = ""; S.bestLap = ""; S.overFlashed = false; S.copied = false;
   save(); renderState(); lockWake(); markActive();
 }
 function plus() { S.count++; save(); renderState(); flash("bump"); }
@@ -410,6 +412,7 @@ function togglePause() {
 }
 function resume() {
   // continue the same session: treat the time spent on the summary screen as paused
+  clearNewConfirm(); S.copied = false;
   S.pausedMs += Date.now() - S.endEpoch; S.status = "running"; save(); renderState(); lockWake(); markActive();
 }
 function reset() { S.status = "ready"; S.count = 0; S.attempted = ""; S.bestLap = ""; S.pausedMs = 0; S.overFlashed = false; save(); renderState(); }
@@ -498,15 +501,22 @@ function renderSummary() {
   if (document.activeElement !== $("attempted")) $("attempted").value = S.attempted;
   if (document.activeElement !== $("bestLap")) $("bestLap").value = S.bestLap;
 }
-$("attempted").addEventListener("input", e => { S.attempted = e.target.value; save(); renderSummary(); });
-$("bestLap").addEventListener("input", e => { S.bestLap = e.target.value; save(); renderSummary(); });
+$("attempted").addEventListener("input", e => { S.attempted = e.target.value; S.copied = false; save(); renderSummary(); });
+$("bestLap").addEventListener("input", e => { S.bestLap = e.target.value; S.copied = false; save(); renderSummary(); });
 $("copyBtn").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText(summaryText()); $("copyBtn").textContent = "Copied"; }
+  try { await navigator.clipboard.writeText(summaryText()); $("copyBtn").textContent = "Copied"; S.copied = true; save(); }
   catch (e) { $("copyBtn").textContent = "Copy failed"; }
   setTimeout(() => $("copyBtn").textContent = "Copy summary", 1500);
 });
 $("resumeBtn").addEventListener("click", resume);
-$("newBtn").addEventListener("click", reset);
+// New session before copying the summary asks once more: a second press within 5 s discards it
+let newConfirmTimer = null;
+function clearNewConfirm() { clearTimeout(newConfirmTimer); $("newBtn").classList.remove("confirm"); $("newBtn").textContent = "New session"; }
+$("newBtn").addEventListener("click", () => {
+  if (S.copied || $("newBtn").classList.contains("confirm")) { clearNewConfirm(); reset(); return; }
+  $("newBtn").classList.add("confirm"); $("newBtn").textContent = "Discard unsaved?";
+  newConfirmTimer = setTimeout(clearNewConfirm, 5000);
+});
 
 // ---- settings panel (drops down from the gear; changes save as you type)
 const settingsOpen = () => $("settings").classList.contains("show");
@@ -534,6 +544,9 @@ SLIDERS.forEach(([id, key, lo, hi]) => {
 $("resetDefaults").addEventListener("click", e => {
   e.stopPropagation();
   Object.assign(SETTINGS, DEFAULTS); saveSettings();
+  if (S.status === "ready") {   // session and timer only reset between sessions, never mid-session
+    S.session = "U"; sel.value = "U"; S.mode = "0"; modeSel.value = "0"; showCustom(); renderInfo();
+  }
   setLabel(sessionById(S.session).label || "oopsies"); save();
   openSettings(); applyInputMode(); $("resetDefaults").blur();
 });
@@ -569,15 +582,35 @@ pad.addEventListener("pointerdown", e => {
 });
 pad.addEventListener("contextmenu", e => e.preventDefault());
 let lastPad = "";
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const K = k => `<kbd>${k}</kbd>`, SEP = " &nbsp;·&nbsp; ";
+// does starting now run a warm-up? (setting above 0 and the session doesn't skip it)
+const warmApplies = () => (Number(SETTINGS.warmupMin) || 0) > 0 && sessionById(S.session).warmup !== false;
+let lastKeys = "";
 function updatePad(warm) {
-  const tgt = targetMs(), over = !warm && tgt > 0 && S.status === "running" && scored() >= tgt;
-  let title, hint;
-  if (S.status === "ready") { title = "Tap to start"; hint = "Tap: start with warm-up · Double tap: skip warm-up"; }
-  else if (S.status === "paused") { title = "Paused"; hint = "Tap: resume · Triple tap: end"; }
-  else if (warm) { title = "Warm-up"; hint = "Not scoring yet · Triple tap: end"; }
-  else { title = over ? "Overtime" : "Tap +1"; hint = "Tap: +1 · Double tap: undo · Triple tap: end"; }
+  const lbl = S.label || "count";
+  let title, hint, keys;
+  if (S.status === "ready") {
+    title = "Tap to start";
+    if (warmApplies()) {
+      hint = "Tap: start with warm-up · Double tap: skip warm-up";
+      keys = [`${K("Space")} start with warm-up`, `${K("Space")}${K("Space")} start, skip warm-up`];
+    } else { hint = "Tap: start"; keys = [`${K("Space")} start`]; }
+  } else if (S.status === "paused") {
+    title = "Paused"; hint = "Tap: resume · Triple tap: end";
+    keys = [`${K("Space")} or ${K("P")} resume`, `${K("Space")}×3 end`];
+  } else if (warm) {
+    title = "Warm-up"; hint = "Not scoring yet · Triple tap: end";
+    keys = ["Warm-up, not scoring", `${K("Space")}×3 end`, `${K("P")} pause`];
+  } else {
+    title = `+1 <span class="lbl">${esc(lbl)}</span>`; hint = `Tap: +1 ${lbl} · Double tap: undo · Triple tap: end`;
+    keys = [`${K("Space")} +1 ${esc(lbl)}`, `${K("Space")}${K("Space")} undo`, `${K("Space")}×3 end`, `${K("P")} pause`];
+  }
+  keys.push(`${K("F")} fullscreen`);
   const key = title + hint;
-  if (key !== lastPad) { $("padTitle").textContent = title; $("padHint").textContent = hint; lastPad = key; }
+  if (key !== lastPad) { $("padTitle").innerHTML = title; $("padHint").textContent = hint; lastPad = key; }
+  const kh = keys.join(SEP);
+  if (kh !== lastKeys) { $("keyHints").innerHTML = kh; lastKeys = kh; }
   $("pauseBtn").textContent = S.status === "paused" ? "Resume" : "Pause";
   $("pauseBtn").disabled = !(S.status === "running" || S.status === "paused");
 }
