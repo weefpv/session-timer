@@ -39,6 +39,14 @@
     filter: drop-shadow(0 0 10px rgba(255,120,200,.45)) drop-shadow(0 0 28px rgba(90,170,255,.35));
   }
   .clock .t { font-size: .4em; }
+  .clock.warm { background: none; color: #ff5a3c;
+    filter: drop-shadow(0 0 12px rgba(255,80,40,.45)); }
+  .state.warm { color: #ff7a5c; }
+  .gear { background: none; border: 0; padding: 6px; color: var(--muted); font-size: 22px; line-height: 1; }
+  .gear:hover { color: var(--text); }
+  .settings .card h3 { margin: 18px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+  .setting { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .setting small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
   .state { font-size: 18px; color: var(--muted); letter-spacing: .2em; text-transform: uppercase; min-height: 1.4em; }
   .state.paused { color: #ffd166; }
   .counter { display: flex; align-items: baseline; gap: 14px; }
@@ -77,6 +85,7 @@
   <label class="f">Session
     <select id="sessionSel"></select>
   </label>
+  <button class="gear" id="gearBtn" title="Settings" aria-label="Settings">&#9881;</button>
 </header>
 
 <main>
@@ -95,7 +104,8 @@
     </div>
     <div class="taps" id="taps"></div>
     <div class="help">
-      <kbd>Space</kbd> start, then +1 &nbsp;·&nbsp; <kbd>Space</kbd><kbd>Space</kbd> undo &nbsp;·&nbsp;
+      <kbd>Space</kbd> start with warm-up &nbsp;·&nbsp; <kbd>Space</kbd><kbd>Space</kbd> start, skip warm-up<br>
+      Then: <kbd>Space</kbd> +1 &nbsp;·&nbsp; <kbd>Space</kbd><kbd>Space</kbd> undo &nbsp;·&nbsp;
       <kbd>Space</kbd>×3 end &nbsp;·&nbsp; <kbd>P</kbd> pause
     </div>
   </section>
@@ -115,6 +125,19 @@
       <button id="resumeBtn">Resume</button>
       <button id="newBtn">New session</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay settings" id="settings">
+  <div class="card">
+    <h2>Settings</h2>
+    <h3>Warm-up</h3>
+    <div class="setting">
+      <label for="setWarmup">Warm-up length (minutes)<small>0 turns warm-up off. Session F always skips it.</small></label>
+      <input id="setWarmup" type="number" min="0" max="30" step="0.5" style="width:80px">
+    </div>
+    <div class="note">Saved on this device.</div>
+    <div class="actions"><button class="primary" id="settingsClose">Done</button></div>
   </div>
 </div>
 
@@ -153,9 +176,15 @@ const TAP_WINDOW = 350; // ms to wait for a 2nd/3rd tap
 const KEY = "fpvTimerState.v1";
 const $ = id => document.getElementById(id);
 
+// ---- settings (all user-configurable options live here; add new keys with defaults)
+const SET_KEY = "fpvTimerSettings.v1";
+const SETTINGS = { warmupMin: 2 };
+try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem(SET_KEY)) || {}); } catch (e) {}
+const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(SETTINGS)); } catch (e) {} };
+
 let S = {
   status: "ready",   // ready | running | paused | ended
-  startEpoch: 0, pausedMs: 0, pauseStart: 0, endEpoch: 0,
+  startEpoch: 0, pausedMs: 0, pauseStart: 0, endEpoch: 0, warmMs: 0,
   count: 0, session: "A", label: "missed lap", attempted: ""
 };
 try { const saved = JSON.parse(localStorage.getItem(KEY)); if (saved) S = Object.assign(S, saved); } catch (e) {}
@@ -192,17 +221,23 @@ function fmt(ms, tenths = true) {
   const main = h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
   return tenths ? [main, `.${t % 10}`] : main;
 }
+const inWarmup = () => S.status !== "ready" && elapsed() < S.warmMs;
+const scored = () => Math.max(0, elapsed() - S.warmMs);
+let lastClock = "";
 function tick() {
-  const [a, b] = fmt(elapsed());
-  $("clock").innerHTML = `${a}<span class="t">${b}</span>`;
+  const warm = inWarmup();
+  const [a, b] = fmt(warm ? S.warmMs - elapsed() : scored());
+  const html = `${a}<span class="t">${b}</span>`;
+  if (html !== lastClock) { $("clock").innerHTML = html; lastClock = html; }
+  $("clock").classList.toggle("warm", warm);
+  const st = $("state");
+  st.textContent = S.status === "paused" ? "Paused" : warm ? "Warm-up" : { ready: "Ready", running: "Running", ended: "Ended" }[S.status];
+  st.className = "state" + (S.status === "paused" ? " paused" : warm ? " warm" : "");
   requestAnimationFrame(tick);
 }
 
 // ---- UI state
 function renderState() {
-  const st = $("state");
-  st.textContent = { ready: "Ready", running: "Running", paused: "Paused", ended: "Ended" }[S.status];
-  st.className = "state" + (S.status === "paused" ? " paused" : "");
   $("count").textContent = S.count;
   $("overlay").classList.toggle("show", S.status === "ended");
   if (S.status === "ended") renderSummary();
@@ -210,7 +245,9 @@ function renderState() {
 function flash(cls) { const c = $("count"); c.classList.remove("bump", "undo"); void c.offsetWidth; c.classList.add(cls); setTimeout(() => c.classList.remove(cls), 160); }
 
 // ---- actions
-function start() { S.status = "running"; S.startEpoch = Date.now(); S.pausedMs = 0; S.count = 0; S.attempted = ""; save(); renderState(); lockWake(); }
+function start(skipWarmup) {
+  S.warmMs = (skipWarmup || S.session === "F") ? 0 : Math.max(0, Number(SETTINGS.warmupMin) || 0) * 60000;
+  S.status = "running"; S.startEpoch = Date.now(); S.pausedMs = 0; S.count = 0; S.attempted = ""; save(); renderState(); lockWake(); }
 function plus() { S.count++; save(); renderState(); flash("bump"); }
 function undo() { if (S.count > 0) { S.count--; save(); renderState(); flash("undo"); } }
 function end() { if (S.status === "paused") { S.pausedMs += Date.now() - S.pauseStart; } S.status = "ended"; S.endEpoch = Date.now(); save(); renderState(); }
@@ -230,13 +267,15 @@ let taps = 0, tapTimer = null;
 function showTaps() { $("taps").innerHTML = "<span></span>".repeat(taps); }
 function resolveTaps() {
   const n = taps; taps = 0; showTaps();
-  if (S.status === "ready") { if (n === 1) start(); return; }
+  if (S.status === "ready") { if (n === 1) start(false); else if (n === 2) start(true); return; }
   if (S.status === "paused") { if (n === 1) togglePause(); else if (n >= 3) end(); return; }
   if (S.status !== "running") return;
+  if (inWarmup()) { if (n >= 3) end(); return; }  // no scoring during warm-up
   if (n === 1) plus(); else if (n === 2) undo(); else end();
 }
 function isTyping(t) { return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"); }
 window.addEventListener("keydown", e => {
+  if (settingsOpen()) { if (e.key === "Escape") closeSettings(); return; }
   if (isTyping(e.target)) { if (e.key === "Escape" || e.key === "Enter") e.target.blur(); return; }
   if (S.status === "ended") return;
   if (e.code === "Space") {
@@ -253,10 +292,12 @@ window.addEventListener("keydown", e => {
 // ---- summary
 function summaryText() {
   const s = SESSIONS.find(x => x.id === S.session) || SESSIONS[0];
-  const mins = (elapsed() / 60000);
+  const mins = (scored() / 60000);
+  const warmDone = Math.min(elapsed(), S.warmMs);
   const lines = [
     `Session: ${s.id}. ${s.name}`,
-    `Duration: ${fmt(elapsed(), false)} (${mins.toFixed(1)} min)`,
+    `Warmup: ${S.warmMs ? fmt(warmDone, false) : "No"}`,
+    `Duration: ${fmt(scored(), false)} (${mins.toFixed(1)} min)`,
   ];
   const att = parseInt(S.attempted, 10);
   if (!isNaN(att)) { lines.push(`Attempted: ${att}`); lines.push(`Clean: ${Math.max(0, att - S.count)}`); }
@@ -276,6 +317,18 @@ $("copyBtn").addEventListener("click", async () => {
 });
 $("resumeBtn").addEventListener("click", resume);
 $("newBtn").addEventListener("click", reset);
+
+// ---- settings panel
+const settingsOpen = () => $("settings").classList.contains("show");
+function openSettings() { $("setWarmup").value = SETTINGS.warmupMin; $("settings").classList.add("show"); }
+function closeSettings() {
+  const w = parseFloat($("setWarmup").value);
+  SETTINGS.warmupMin = isNaN(w) ? 0 : Math.min(30, Math.max(0, w));
+  saveSettings(); $("settings").classList.remove("show"); document.activeElement && document.activeElement.blur();
+}
+$("gearBtn").addEventListener("click", () => { $("gearBtn").blur(); openSettings(); });
+$("settingsClose").addEventListener("click", closeSettings);
+$("settings").addEventListener("click", e => { if (e.target.id === "settings") closeSettings(); });
 
 // ---- keep screen awake while a session is active
 let wakeLock = null;
