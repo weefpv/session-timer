@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FPV Session Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0b0b10;
@@ -32,15 +35,18 @@
   .stage { display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 24px; gap: 18px; min-height: 60vh; }
   .clock {
-    font-variant-numeric: tabular-nums; font-weight: 800; line-height: 1;
-    font-size: clamp(72px, 17vw, 260px); letter-spacing: -0.02em;
-    background: linear-gradient(90deg, #ff4d6d, #ff9f1c, #ffe14d, #4dff88, #4dd2ff, #7a5cff, #ff4dd8);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-family: "Chakra Petch", system-ui, sans-serif; font-weight: 700; line-height: 1;
+    font-size: clamp(72px, 17vw, 260px); white-space: nowrap;
     filter: drop-shadow(0 0 10px rgba(255,120,200,.45)) drop-shadow(0 0 28px rgba(90,170,255,.35));
   }
+  /* each character gets its own full rainbow, top to bottom; fixed width stops jitter */
+  .clock .c { display: inline-block; width: .64em; text-align: center;
+    background: linear-gradient(180deg, #ff4d6d, #ff9f1c, #ffe14d, #4dff88, #4dd2ff, #7a5cff);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .clock .c.sep { width: .3em; }
   .clock .t { font-size: .4em; }
-  .clock.warm { background: none; color: #ff5a3c;
-    filter: drop-shadow(0 0 12px rgba(255,80,40,.45)); }
+  .clock.warm { filter: drop-shadow(0 0 12px rgba(255,80,40,.45)); }
+  .clock.warm .c { background: none; color: #ff5a3c; }
   .state.warm { color: #ff7a5c; }
   .gear { background: none; border: 0; padding: 6px; color: var(--muted); font-size: 22px; line-height: 1; }
   .gear:hover { color: var(--text); }
@@ -133,7 +139,7 @@
     <h2>Settings</h2>
     <h3>Warm-up</h3>
     <div class="setting">
-      <label for="setWarmup">Warm-up length (minutes)<small>0 turns warm-up off. Session F always skips it.</small></label>
+      <label for="setWarmup">Warm-up length (minutes)<small>0 turns warm-up off.</small></label>
       <input id="setWarmup" type="number" min="0" max="30" step="0.5" style="width:80px">
     </div>
     <div class="note">Saved on this device.</div>
@@ -159,8 +165,8 @@ const SESSIONS = [
     html: `<p>Flips, rolls or split-S with lots of height, on a freestyle map or above the track. Mechanics in the FPV Practice Reference doc.</p><p>Log Attempted (called) and Clean.</p>` },
   { id: "E", name: "Free fly", dur: "10 to 20 min", label: "missed lap",
     html: `<p>No goal, any map. Good for turns in the direction your current track doesn't use, and the reset after a frustrated session.</p>` },
-  { id: "F", name: "Five minutes", dur: "5 min", label: "missed lap",
-    html: `<p>A few laps of your current track. Required after 2 or more days without flying. Counts as a day, not as a full session.</p>` },
+  { id: "F", name: "Five minutes", dur: "5 min", label: "missed lap", warmup: false,
+    html: `<p>A few laps of your current track. Required after 2 or more days without flying. Counts as a day, not as a full session.</p><p><b>No warm-up:</b> the timer starts scoring right away.</p>` },
 ];
 const RULES_HTML = `
   <p><b>Default pick:</b> alternate A and B. If your last full session was A, do B, and the reverse. After each session, submit the Session Log form.</p>
@@ -227,7 +233,8 @@ let lastClock = "";
 function tick() {
   const warm = inWarmup();
   const [a, b] = fmt(warm ? S.warmMs - elapsed() : scored());
-  const html = `${a}<span class="t">${b}</span>`;
+  const chars = str => [...str].map(ch => `<span class="c${/\d/.test(ch) ? "" : " sep"}">${ch}</span>`).join("");
+  const html = `${chars(a)}<span class="t">${chars(b)}</span>`;
   if (html !== lastClock) { $("clock").innerHTML = html; lastClock = html; }
   $("clock").classList.toggle("warm", warm);
   const st = $("state");
@@ -246,7 +253,8 @@ function flash(cls) { const c = $("count"); c.classList.remove("bump", "undo"); 
 
 // ---- actions
 function start(skipWarmup) {
-  S.warmMs = (skipWarmup || S.session === "F") ? 0 : Math.max(0, Number(SETTINGS.warmupMin) || 0) * 60000;
+  const sess = SESSIONS.find(x => x.id === S.session) || {};
+  S.warmMs = (skipWarmup || sess.warmup === false) ? 0 : Math.max(0, Number(SETTINGS.warmupMin) || 0) * 60000;
   S.status = "running"; S.startEpoch = Date.now(); S.pausedMs = 0; S.count = 0; S.attempted = ""; save(); renderState(); lockWake(); }
 function plus() { S.count++; save(); renderState(); flash("bump"); }
 function undo() { if (S.count > 0) { S.count--; save(); renderState(); flash("undo"); } }
