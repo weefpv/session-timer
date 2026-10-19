@@ -43,6 +43,13 @@
     background: linear-gradient(135deg, #ff4d6d, #ff9f1c, #ffe14d, #4dff88, #4dd2ff, #7a5cff);
     -webkit-background-clip: text; background-clip: text; color: transparent; }
   .clock .c.sep { width: .3em; }
+  /* the rainbow flows diagonally while the timer is running (position driven from JS via --rp, since digits are
+     re-rendered every 0.1 s). The palette is repeated twice at 200% size, so each digit always shows one full
+     rainbow and the loop is seamless. Frozen when ready, paused or ended. */
+  .clock .c { background-image: linear-gradient(135deg,
+      #ff4d6d 0%, #ff9f1c 8.33%, #ffe14d 16.67%, #4dff88 25%, #4dd2ff 33.33%, #7a5cff 41.67%,
+      #ff4d6d 50%, #ff9f1c 58.33%, #ffe14d 66.67%, #4dff88 75%, #4dd2ff 83.33%, #7a5cff 91.67%, #ff4d6d 100%);
+    background-size: 200% 200%; background-position: var(--rp, 0%) var(--rp, 0%); }
   .clock .t { font-size: .4em; }
   .clock.warm { filter: drop-shadow(0 0 12px rgba(255,80,40,.45)); }
   .clock.warm .c { background: none; color: #ff5a3c; }
@@ -54,7 +61,8 @@
   .count { font-size: clamp(48px, 8vw, 110px); font-weight: 700; font-variant-numeric: tabular-nums; transition: transform .12s, color .12s; }
   .count.bump { transform: scale(1.12); color: #fff; }
   .count.undo { transform: scale(.9); color: #ff8fa3; }
-  .countLabel { display: flex; gap: 8px; align-items: center; }
+  .countLabel { font-size: clamp(18px, 2.4vw, 28px); color: var(--muted); }
+  .panel .reset { width: 100%; margin-top: 12px; }
   .taps { height: 12px; display: flex; gap: 6px; }
   .taps span { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
   .help { color: var(--muted); font-size: 14px; text-align: center; line-height: 1.7; }
@@ -84,6 +92,9 @@
   .panel h3 { margin: 14px 0 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
   .setting { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
   .setting:last-of-type { border-bottom: 0; }
+  .slide { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .slide input { width: 120px; padding: 0; }
+  .slide b { width: 4.2em; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
   .setting small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 
   /* countdown end: full-window flash (2 per second, under the 3/s photosensitivity limit), then a slow pulse in overtime */
@@ -152,21 +163,34 @@
   <button class="gear" id="gearBtn" title="Settings" aria-label="Settings" aria-expanded="false">&#9881;</button>
 
   <div class="panel" id="settings" role="dialog" aria-label="Settings">
-    <h3>Warm-up</h3>
+    <h3>Timing and display</h3>
     <div class="setting">
-      <label for="setWarmup">Warm-up length (minutes)<small>0 turns warm-up off.</small></label>
-      <input id="setWarmup" type="number" min="0" max="30" step="0.5" style="width:80px">
+      <label for="setWarmup">Warm-up length<small>0 turns warm-up off.</small></label>
+      <span class="slide"><input id="setWarmup" type="range" min="0" max="5" step="0.5"><b id="setWarmupVal"></b></span>
+    </div>
+    <div class="setting">
+      <label for="setIdle">Hide controls after<small>While running, with no mouse or touch. 0 never hides.</small></label>
+      <span class="slide"><input id="setIdle" type="range" min="0" max="60" step="1"><b id="setIdleVal"></b></span>
+    </div>
+    <div class="setting">
+      <label for="setSpeed">Animation speed<small>Rainbow flow while running. 1 = one cycle per 5 s, 100 = per 1 s.</small></label>
+      <span class="slide"><input id="setSpeed" type="range" min="1" max="100" step="1"><b id="setSpeedVal"></b></span>
     </div>
     <h3>Input</h3>
     <div class="setting">
       <label for="setInput">Input mode<small>Auto uses touch when the device's main pointer is a finger.</small></label>
       <select id="setInput"><option value="auto">Auto</option><option value="keyboard">Keyboard</option><option value="touch">Touch</option></select>
     </div>
-    <h3>Display</h3>
+    <h3>Counter</h3>
     <div class="setting">
-      <label for="setIdle">Hide controls after (seconds)<small>While running, with no mouse or touch. 0 never hides.</small></label>
-      <input id="setIdle" type="number" min="0" max="60" step="1" style="width:80px">
+      <label for="labelInput">Counter label<small>Picking a session resets it to that session's default.</small></label>
+      <input id="labelInput" list="labelOpts" size="12" aria-label="Counter label">
+      <datalist id="labelOpts">
+        <option value="oopsie!"><option value="missed stop"><option value="missed pass">
+        <option value="missed rep"><option value="crash">
+      </datalist>
     </div>
+    <button class="reset" id="resetDefaults">Reset to defaults</button>
     <div class="note">Saved on this device.</div>
   </div>
 </header>
@@ -177,13 +201,7 @@
     <div class="clock" id="clock">0:00<span class="t">.0</span></div>
     <div class="counter">
       <div class="count" id="count">0</div>
-      <div class="countLabel chrome">
-        <input id="labelInput" list="labelOpts" value="oopsie!" size="14" aria-label="Counter label">
-        <datalist id="labelOpts">
-          <option value="oopsie!"><option value="missed stop"><option value="missed pass">
-          <option value="missed rep"><option value="crash">
-        </datalist>
-      </div>
+      <div class="countLabel" id="labelText">oopsie!</div>
     </div>
     <div class="taps" id="taps"></div>
     <div class="help chrome keysOnly">
@@ -265,7 +283,8 @@ const sessionById = id => SESSIONS.find(x => x.id === id) || SESSIONS[0];
 
 // ---- settings (all user-configurable options live here; add new keys with defaults)
 const SET_KEY = "fpvTimerSettings.v1";
-const SETTINGS = { warmupMin: 2, idleSec: 3, inputMode: "auto" };
+const DEFAULTS = { warmupMin: 3, idleSec: 3, inputMode: "auto", animSpeed: 50 };
+const SETTINGS = { ...DEFAULTS };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem(SET_KEY)) || {}); } catch (e) {}
 const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(SETTINGS)); } catch (e) {} };
 
@@ -290,7 +309,7 @@ function renderInfo() {
 }
 function applySessionDefaults() {
   const s = sessionById(S.session);
-  S.label = s.label || S.label; labelInput.value = S.label;
+  setLabel(s.label || S.label);
   const m = String(s.countdown || 0);
   if ([...modeSel.options].some(o => o.value === m)) { S.mode = m; }
   else { S.mode = "custom"; S.customMin = m; customMin.value = m; }
@@ -301,8 +320,9 @@ sel.addEventListener("change", () => {
   if (S.status === "ready") applySessionDefaults();
   save(); renderInfo(); sel.blur();
 });
-labelInput.value = S.label;
-labelInput.addEventListener("input", () => { S.label = labelInput.value; save(); });
+function setLabel(v) { S.label = v; labelInput.value = v; $("labelText").textContent = v || "count"; }
+setLabel(S.label);
+labelInput.addEventListener("input", () => { S.label = labelInput.value; $("labelText").textContent = S.label || "count"; save(); });
 labelInput.addEventListener("change", () => labelInput.blur());
 
 // ---- timer mode
@@ -331,7 +351,10 @@ const targetMin = () => S.mode === "custom" ? (parseFloat(S.customMin) || 0) : p
 const targetMs = () => Math.max(0, targetMin()) * 60000;
 const inWarmup = () => S.status !== "ready" && elapsed() < S.warmMs;
 const scored = () => Math.max(0, elapsed() - S.warmMs);
-let lastClock = "";
+let lastClock = "", rainbowPos = 0, lastFrame = performance.now();
+// one full color cycle: speed 1 = 5000 ms, 100 = 1000 ms, linear in between
+const rainbowMs = () => 5000 - (Math.min(100, Math.max(1, Number(SETTINGS.animSpeed) || 50)) - 1) * (4000 / 99);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 function tick() {
   const warm = inWarmup();
   const tgt = targetMs(), over = !warm && tgt > 0 && S.status !== "ready" && scored() >= tgt;
@@ -347,6 +370,11 @@ function tick() {
   // countdown reached zero: flash once, then pulse the window edge for the rest of overtime
   if (over && S.status === "running" && !S.overFlashed) { S.overFlashed = true; save(); const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
   document.body.classList.toggle("over", over && S.status === "running");
+  if (S.status === "running" && !warm && !reduceMotion.matches) {
+    rainbowPos = ((rainbowPos - (performance.now() - lastFrame) / rainbowMs() * 100) % 100 + 100) % 100;
+    $("clock").style.setProperty("--rp", rainbowPos.toFixed(2) + "%");
+  }
+  lastFrame = performance.now();
   updateIdle(); updatePad(warm);
   requestAnimationFrame(tick);
 }
@@ -479,17 +507,33 @@ $("newBtn").addEventListener("click", reset);
 // ---- settings panel (drops down from the gear; changes save as you type)
 const settingsOpen = () => $("settings").classList.contains("show");
 function openSettings() {
-  $("setWarmup").value = SETTINGS.warmupMin; $("setIdle").value = SETTINGS.idleSec; $("setInput").value = SETTINGS.inputMode;
+  $("setInput").value = SETTINGS.inputMode;
+  SLIDERS.forEach(([id, key]) => { $(id).value = SETTINGS[key]; }); showSliderValues();
   $("settings").classList.add("show"); $("gearBtn").classList.add("open"); $("gearBtn").setAttribute("aria-expanded", "true");
 }
 function closeSettings() {
   $("settings").classList.remove("show"); $("gearBtn").classList.remove("open"); $("gearBtn").setAttribute("aria-expanded", "false");
   if (document.activeElement) document.activeElement.blur();
 }
-const clampNum = (v, lo, hi) => { const n = parseFloat(v); return isNaN(n) ? 0 : Math.min(hi, Math.max(lo, n)); };
-$("setWarmup").addEventListener("input", e => { SETTINGS.warmupMin = clampNum(e.target.value, 0, 30); saveSettings(); });
+const clampNum = (v, lo, hi) => { const n = parseFloat(v); return isNaN(n) ? lo : Math.min(hi, Math.max(lo, n)); };
+// sliders: [element id, setting key, min, max, label for the current value]
+const SLIDERS = [
+  ["setWarmup", "warmupMin", 0, 5,   v => v ? `${v} min` : "Off"],
+  ["setIdle",   "idleSec",   0, 60,  v => v ? `${v} s` : "Never"],
+  ["setSpeed",  "animSpeed", 1, 100, v => `${v}`],
+];
+function showSliderValues() { SLIDERS.forEach(([id, key, , , fmtV]) => { $(id + "Val").textContent = fmtV(SETTINGS[key]); }); }
+SLIDERS.forEach(([id, key, lo, hi]) => {
+  SETTINGS[key] = clampNum(SETTINGS[key], lo, hi);   // keep older saved values inside the slider range
+  $(id).addEventListener("input", e => { SETTINGS[key] = clampNum(e.target.value, lo, hi); showSliderValues(); saveSettings(); });
+});
+$("resetDefaults").addEventListener("click", e => {
+  e.stopPropagation();
+  Object.assign(SETTINGS, DEFAULTS); saveSettings();
+  setLabel(sessionById(S.session).label || "oopsie!"); save();
+  openSettings(); applyInputMode(); $("resetDefaults").blur();
+});
 $("setInput").addEventListener("change", e => { SETTINGS.inputMode = e.target.value; saveSettings(); applyInputMode(); });
-$("setIdle").addEventListener("input", e => { SETTINGS.idleSec = clampNum(e.target.value, 0, 60); saveSettings(); });
 $("gearBtn").addEventListener("click", e => { e.stopPropagation(); $("gearBtn").blur(); settingsOpen() ? closeSettings() : openSettings(); });
 document.addEventListener("click", e => { if (settingsOpen() && !$("settings").contains(e.target)) closeSettings(); });
 

@@ -25,7 +25,15 @@ At zero the window flashes, then the display counts overtime as `+m:ss`.
 
 ## Settings
 
-Gear icon, top right. Saved per device: warm-up length, input mode, and how long before controls fade while running.
+Gear icon, top right. Saved per device:
+
+- Warm-up length: 0 to 5 min, default 3
+- Hide controls after: 0 to 60 s, default 3 (0 never hides)
+- Animation speed: 1 to 100 (5 s to 1 s per rainbow cycle), default 50
+- Input mode: Auto, Keyboard or Touch
+- Counter label (resets to the session's default when you pick a session)
+
+Reset to defaults restores all of the above.
 
 ## Session content
 
