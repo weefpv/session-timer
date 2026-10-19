@@ -6,7 +6,7 @@
 <title>FPV Session Timer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0b0b10;
@@ -29,19 +29,18 @@
   button:hover { border-color: #3a3a4c; }
   label.f { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; }
 
-  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  main { flex: 1; display: flex; flex-direction: column; }
 
   .stage { display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 24px; gap: 18px; min-height: 60vh; }
   .clock {
-    font-family: "Chakra Petch", system-ui, sans-serif; font-weight: 700; line-height: 1;
+    font-family: "Oxanium", system-ui, sans-serif; font-weight: 700; line-height: 1;
     font-size: clamp(72px, 17vw, 260px); white-space: nowrap;
     filter: drop-shadow(0 0 10px rgba(255,120,200,.45)) drop-shadow(0 0 28px rgba(90,170,255,.35));
   }
   /* each character gets its own full rainbow, top to bottom; fixed width stops jitter */
   .clock .c { display: inline-block; width: .64em; text-align: center;
-    background: linear-gradient(180deg, #ff4d6d, #ff9f1c, #ffe14d, #4dff88, #4dd2ff, #7a5cff);
+    background: linear-gradient(135deg, #ff4d6d, #ff9f1c, #ffe14d, #4dff88, #4dd2ff, #7a5cff);
     -webkit-background-clip: text; background-clip: text; color: transparent; }
   .clock .c.sep { width: .3em; }
   .clock .t { font-size: .4em; }
@@ -65,12 +64,11 @@
   .help { color: var(--muted); font-size: 14px; text-align: center; line-height: 1.7; }
   kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-size: 12px; background: var(--panel); }
 
-  aside { border-left: 1px solid var(--line); padding: 20px; overflow-y: auto; max-height: calc(100vh - 62px); }
-  @media (max-width: 900px) { aside { border-left: 0; border-top: 1px solid var(--line); max-height: none; } }
-  aside h2 { margin: 0 0 4px; font-size: 22px; }
-  aside .dur { color: var(--muted); margin-bottom: 12px; }
-  aside p, aside li { line-height: 1.55; color: #cfcfdc; }
-  aside ol, aside ul { padding-left: 20px; }
+  .info { width: min(760px, 100%); border-top: 1px solid var(--line); padding-top: 16px; }
+  .info h2 { margin: 0 0 2px; font-size: 20px; }
+  .info .dur { color: var(--muted); margin-bottom: 8px; font-size: 14px; }
+  .info p, .info li { line-height: 1.55; color: #cfcfdc; margin: 6px 0; }
+  .info ol, .info ul { padding-left: 20px; }
   details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
   summary { cursor: pointer; color: var(--muted); }
 
@@ -114,8 +112,8 @@
       Then: <kbd>Space</kbd> +1 &nbsp;·&nbsp; <kbd>Space</kbd><kbd>Space</kbd> undo &nbsp;·&nbsp;
       <kbd>Space</kbd>×3 end &nbsp;·&nbsp; <kbd>P</kbd> pause
     </div>
+    <div class="info" id="info"></div>
   </section>
-  <aside id="info"></aside>
 </main>
 
 <div class="overlay" id="overlay">
