@@ -186,7 +186,7 @@
       <label for="labelInput">Counter label<small>Picking a session resets it to that session's default.</small></label>
       <input id="labelInput" list="labelOpts" size="12" aria-label="Counter label">
       <datalist id="labelOpts">
-        <option value="oopsie!"><option value="missed stop"><option value="missed pass">
+        <option value="oopsies"><option value="missed stop"><option value="missed pass">
         <option value="missed rep"><option value="crash">
       </datalist>
     </div>
@@ -201,7 +201,7 @@
     <div class="clock" id="clock">0:00<span class="t">.0</span></div>
     <div class="counter">
       <div class="count" id="count">0</div>
-      <div class="countLabel" id="labelText">oopsie!</div>
+      <div class="countLabel" id="labelText">oopsies</div>
     </div>
     <div class="taps" id="taps"></div>
     <div class="help chrome keysOnly">
@@ -249,7 +249,10 @@
    countdown: default Timer minutes when the session is picked (0 = count up)
    warmup: false skips warm-up for that session ===== */
 const SESSIONS = [
-  { id: "A", name: "Clean laps", dur: "15 to 20 min", label: "oopsie!", countdown: 15,
+  // app-only entry (not in ClickUp): the default when no session type is picked
+  { id: "U", name: "Unspecified", noPrefix: true, dur: "", label: "oopsies", countdown: 0,
+    html: `<p>No session type selected. Pick one from the Session menu to see its description.</p>` },
+  { id: "A", name: "Clean laps", dur: "15 to 20 min", label: "oopsies", countdown: 15,
     html: `<p>Current track from <b>00 Sim Current focus</b>.</p><p>Log Attempted (lap counter), Clean and Best lap time.</p>` },
   { id: "B", name: "Throttle", dur: "10 to 15 min", label: "missed stop", countdown: 10,
     html: `<p>On your current track:</p><ol>
@@ -261,9 +264,9 @@ const SESSIONS = [
     html: `<p>The gate or section you miss most, flown over and over, then one full lap.</p><p>Log Attempted and Clean passes, and the Crash spot.</p>` },
   { id: "D", name: "Call-it reps", dur: "10 to 20 min", label: "missed rep", countdown: 10,
     html: `<p>Flips, rolls or split-S with lots of height, on a freestyle map or above the track. Mechanics in the FPV Practice Reference doc.</p><p>Log Attempted (called) and Clean.</p>` },
-  { id: "E", name: "Free fly", dur: "10 to 20 min", label: "oopsie!", countdown: 10,
+  { id: "E", name: "Free fly", dur: "10 to 20 min", label: "oopsies", countdown: 10,
     html: `<p>No goal, any map. Good for turns in the direction your current track doesn't use, and the reset after a frustrated session.</p>` },
-  { id: "F", name: "Five minutes", dur: "5 min", label: "oopsie!", countdown: 5, warmup: false,
+  { id: "F", name: "Five minutes", dur: "5 min", label: "oopsies", countdown: 5, warmup: false,
     html: `<p>A few laps of your current track. Required after 2 or more days without flying. Counts as a day, not as a full session.</p><p><b>No warm-up:</b> the timer starts scoring right away.</p>` },
 ];
 const RULES_HTML = `
@@ -279,6 +282,7 @@ const RULES_HTML = `
 const TAP_WINDOW = 350; // ms to wait for a 2nd/3rd tap
 const KEY = "fpvTimerState.v1";
 const $ = id => document.getElementById(id);
+const sessionName = s => s.noPrefix ? s.name : `${s.id}. ${s.name}`;
 const sessionById = id => SESSIONS.find(x => x.id === id) || SESSIONS[0];
 
 // ---- settings (all user-configurable options live here; add new keys with defaults)
@@ -291,20 +295,20 @@ const saveSettings = () => { try { localStorage.setItem(SET_KEY, JSON.stringify(
 let S = {
   status: "ready",   // ready | running | paused | ended
   startEpoch: 0, pausedMs: 0, pauseStart: 0, endEpoch: 0, warmMs: 0,
-  count: 0, session: "A", label: "oopsie!", attempted: "", bestLap: "",
-  mode: "15", customMin: "", overFlashed: false
+  count: 0, session: "U", label: "oopsies", attempted: "", bestLap: "",
+  mode: "0", customMin: "", overFlashed: false
 };
 try { const saved = JSON.parse(localStorage.getItem(KEY)); if (saved) S = Object.assign(S, saved); } catch (e) {}
-if (S.label === "missed lap") S.label = "oopsie!";   // old default label
+if (S.label === "missed lap" || S.label === "oopsie!") S.label = "oopsies";   // old default labels
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
 // ---- session picker
 const sel = $("sessionSel"), modeSel = $("modeSel"), customMin = $("customMin"), labelInput = $("labelInput");
-SESSIONS.forEach(s => { const o = document.createElement("option"); o.value = s.id; o.textContent = `${s.id}. ${s.name}`; sel.appendChild(o); });
+SESSIONS.forEach(s => { const o = document.createElement("option"); o.value = s.id; o.textContent = sessionName(s); sel.appendChild(o); });
 sel.value = S.session;
 function renderInfo() {
   const s = sessionById(S.session);
-  $("info").innerHTML = `<h2>${s.id}. ${s.name}</h2><div class="dur">${s.dur}</div>${s.html}
+  $("info").innerHTML = `<h2>${sessionName(s)}</h2>${s.dur ? `<div class="dur">${s.dur}</div>` : ""}${s.html}
     <details><summary>Rules and weekly targets</summary>${RULES_HTML}</details>`;
 }
 function applySessionDefaults() {
@@ -476,7 +480,7 @@ function summaryText() {
   const mins = (scored() / 60000);
   const warmDone = Math.min(elapsed(), S.warmMs);
   const lines = [
-    `Session: ${s.id}. ${s.name}`,
+    `Session: ${sessionName(s)}`,
     `Warmup: ${S.warmMs ? fmt(warmDone, false) : "No"}`,
     `Timer: ${targetMs() ? fmt(targetMs(), false) + " countdown" : "Count up"}`,
     `Duration: ${fmt(scored(), false)} (${mins.toFixed(1)} min)`,
@@ -530,7 +534,7 @@ SLIDERS.forEach(([id, key, lo, hi]) => {
 $("resetDefaults").addEventListener("click", e => {
   e.stopPropagation();
   Object.assign(SETTINGS, DEFAULTS); saveSettings();
-  setLabel(sessionById(S.session).label || "oopsie!"); save();
+  setLabel(sessionById(S.session).label || "oopsies"); save();
   openSettings(); applyInputMode(); $("resetDefaults").blur();
 });
 $("setInput").addEventListener("change", e => { SETTINGS.inputMode = e.target.value; saveSettings(); applyInputMode(); });

@@ -20,7 +20,7 @@ Fullscreen is hidden on iPhone, where Safari doesn't support it for pages.
 
 ## Timer
 
-Count up, or count down from 5, 10, 15, 20 minutes or a custom value. Each session type sets a default.
+Count up (the default), or count down from 5, 10, 15, 20 minutes or a custom value. Each session type sets a default.
 At zero the window flashes, then the display counts overtime as `+m:ss`.
 
 ## Settings
@@ -38,4 +38,5 @@ Reset to defaults restores all of the above.
 ## Session content
 
 Session descriptions, default counter labels, default timer and warm-up skip are a snapshot of the ClickUp
-"01 Session menu" task, in the `SESSIONS` block in `index.html`.
+"01 Session menu" task, in the `SESSIONS` block in `index.html`. The first entry, "Unspecified", is app-only:
+it's the default session, with Count up and the "oopsies" label.
